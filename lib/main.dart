@@ -57,7 +57,10 @@ class _HomeScreenState extends State<HomeScreen> {
       final dir = await getApplicationDocumentsDirectory();
       final path =
           '${dir.path}/recording_${DateTime.now().millisecondsSinceEpoch}.m4a';
-      await _recorder.start(const RecordConfig(), path: path);
+      await _recorder.start(
+        const AudioRecorderConfig(),
+        path: path,
+      );
       setState(() {
         _isRecording = true;
         _statusMessage = 'Recording...';
@@ -102,7 +105,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<String?> _transcribeAudio(File file) async {
     try {
-      var uri = Uri.parse('https://api.openai.com/v1/audio/transcriptions');
+      var uri = Uri.parse('https://api.groq.com/openai/v1/audio/transcriptions');
       var request = http.MultipartRequest('POST', uri);
       request.headers['Authorization'] = 'Bearer $openAiKey';
       request.fields['model'] = 'whisper-1';
@@ -130,13 +133,13 @@ Transcript: $transcript''';
 
     try {
       final response = await http.post(
-        Uri.parse('https://api.openai.com/v1/chat/completions'),
+        Uri.parse('https://api.groq.com/openai/v1/chat/completions'),
         headers: {
           'Authorization': 'Bearer $openAiKey',
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
-          'model': 'gpt-4o-mini',
+          'model': 'llama-3.1-8b-instant',
           'messages': [{'role': 'user', 'content': prompt}],
           'response_format': {'type': 'json_object'},
           'temperature': 0,
@@ -147,7 +150,7 @@ Transcript: $transcript''';
         return jsonDecode(data['choices'][0]['message']['content']);
       }
     } catch (e) {
-      print('GPT error: $e');
+      print('LLM error: $e');
     }
     return null;
   }

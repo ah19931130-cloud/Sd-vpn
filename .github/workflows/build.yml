@@ -20,9 +20,16 @@ jobs:
         with:
           flutter-version: '3.24.0'
       - run: flutter pub get
+      - name: Backup custom main.dart
+        run: cp lib/main.dart lib/main.dart.bak
+      - name: Create Android project files
+        run: flutter create --platforms android --project-name sd_vpn .
+      - name: Restore custom main.dart
+        run: mv lib/main.dart.bak lib/main.dart
+      - name: Set minSdkVersion to 23
+        run: sed -i 's/minSdkVersion .*/minSdkVersion 23/' android/app/build.gradle
       - name: Inject Firebase google-services.json
         run: |
-          mkdir -p android/app
           echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
       - name: Inject Groq API key
         run: |

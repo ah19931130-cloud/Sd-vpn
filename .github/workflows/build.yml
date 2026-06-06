@@ -43,6 +43,8 @@ jobs:
               ]
           }
           EOF
+          sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 23/' android/app/build.gradle
+          sed -i 's/minSdkVersion 21/minSdkVersion 23/' android/app/build.gradle
       - name: Restore custom main.dart
         run: mv lib/main.dart.bak lib/main.dart
       - run: flutter build apk --debug

@@ -1,4 +1,3 @@
-cat > pubspec.yaml << 'EOF'
 name: voice2action
 description: AI Voice to Action - Hackathon MVP
 publish_to: 'none'
@@ -28,4 +27,3 @@ flutter:
   uses-material-design: true
   assets:
     - .env
-EOF

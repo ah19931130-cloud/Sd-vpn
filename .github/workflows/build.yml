@@ -26,19 +26,64 @@ jobs:
         run: flutter create --platforms android --project-name sd_vpn .
       - name: Restore custom main.dart
         run: mv lib/main.dart.bak lib/main.dart
-      - name: Set compileSdk and minSdk for flutter_sound compatibility
+      - name: Replace android/app/build.gradle with custom config
         run: |
-          sed -i 's/compileSdkVersion .*/compileSdkVersion 35/' android/app/build.gradle
-          sed -i 's/minSdkVersion .*/minSdkVersion 24/' android/app/build.gradle
-          sed -i 's/targetSdkVersion .*/targetSdkVersion 35/' android/app/build.gradle
-          cat >> android/build.gradle << 'EOF'
-          ext {
-              flutter = [
-                  compileSdkVersion: 35,
-                  minSdkVersion    : 24,
-                  targetSdkVersion : 35
-              ]
+          cat > android/app/build.gradle << 'EOF'
+          def localProperties = new Properties()
+          def localPropertiesFile = rootProject.file('local.properties')
+          if (localPropertiesFile.exists()) {
+              localPropertiesFile.withReader('UTF-8') { reader ->
+                  localProperties.load(reader)
+              }
           }
+
+          def flutterRoot = localProperties.getProperty('flutter.sdk')
+          if (flutterRoot == null) {
+              throw new Exception("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
+          }
+
+          def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
+          if (flutterVersionCode == null) {
+              flutterVersionCode = '1'
+          }
+
+          def flutterVersionName = localProperties.getProperty('flutter.versionName')
+          if (flutterVersionName == null) {
+              flutterVersionName = '1.0'
+          }
+
+          apply plugin: 'com.android.application'
+          apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
+
+          android {
+              compileSdkVersion 35
+              ndkVersion flutter.ndkVersion
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_1_8
+                  targetCompatibility JavaVersion.VERSION_1_8
+              }
+
+              defaultConfig {
+                  applicationId "com.example.sd_vpn"
+                  minSdkVersion 24
+                  targetSdkVersion 35
+                  versionCode flutterVersionCode.toInteger()
+                  versionName flutterVersionName
+              }
+
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.debug
+                  }
+              }
+          }
+
+          flutter {
+              source '../..'
+          }
+
+          dependencies {}
           EOF
       - name: Inject Firebase google-services.json
         run: |

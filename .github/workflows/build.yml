@@ -20,74 +20,15 @@ jobs:
         with:
           flutter-version: '3.24.0'
       - run: flutter pub get
-      - name: Backup custom main.dart
-        run: cp lib/main.dart lib/main.dart.bak
       - name: Create Android project files
-        run: flutter create --platforms android --project-name sd_vpn .
-      - name: Restore custom main.dart
-        run: mv lib/main.dart.bak lib/main.dart
-      - name: Replace android/app/build.gradle with compatible config
+        run: flutter create --platforms android --project-name voice2action .
+      - name: Set compileSdk and targetSdk to 34
         run: |
-          cat > android/app/build.gradle << 'EOF'
-          def localProperties = new Properties()
-          def localPropertiesFile = rootProject.file('local.properties')
-          if (localPropertiesFile.exists()) {
-              localPropertiesFile.withReader('UTF-8') { reader ->
-                  localProperties.load(reader)
-              }
-          }
-
-          def flutterRoot = localProperties.getProperty('flutter.sdk')
-          if (flutterRoot == null) {
-              throw new Exception("Flutter SDK not found. Define location with flutter.sdk in the local.properties file.")
-          }
-
-          def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
-          if (flutterVersionCode == null) {
-              flutterVersionCode = '1'
-          }
-
-          def flutterVersionName = localProperties.getProperty('flutter.versionName')
-          if (flutterVersionName == null) {
-              flutterVersionName = '1.0'
-          }
-
-          apply plugin: 'com.android.application'
-          apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
-
-          android {
-              namespace 'com.example.sd_vpn'
-              compileSdkVersion 33
-              ndkVersion flutter.ndkVersion
-
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_1_8
-                  targetCompatibility JavaVersion.VERSION_1_8
-              }
-
-              defaultConfig {
-                  applicationId "com.example.sd_vpn"
-                  minSdkVersion 23
-                  targetSdkVersion 33
-                  versionCode flutterVersionCode.toInteger()
-                  versionName flutterVersionName
-              }
-
-              buildTypes {
-                  release {
-                      signingConfig signingConfigs.debug
-                  }
-              }
-          }
-
-          flutter {
-              source '../..'
-          }
-
-          dependencies {}
-          EOF
+          sed -i 's/compileSdkVersion .*/compileSdkVersion 34/' android/app/build.gradle
+          sed -i 's/targetSdkVersion .*/targetSdkVersion 34/' android/app/build.gradle
       - name: Inject Firebase google-services.json
         run: |
+          mkdir -p android/app
           echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
       - name: Inject Groq API key
         run: |

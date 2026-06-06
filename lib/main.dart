@@ -58,7 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final path =
           '${dir.path}/recording_${DateTime.now().millisecondsSinceEpoch}.m4a';
       await _recorder.start(
-        const AudioRecorderConfig(),
+        const RecordConfig(),
         path: path,
       );
       setState(() {

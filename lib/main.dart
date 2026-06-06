@@ -2,17 +2,16 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    // ضع خيارات Firebase الخاصة بمشروعك هنا إن لم تستخدم `google-services.json` التلقائي
-  );
+  await Firebase.initializeApp();
   runApp(const Voice2ActionApp());
 }
 
@@ -40,11 +39,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final AudioRecorder _recorder = AudioRecorder();
   bool _isRecording = false;
-  String? _currentRecordingPath;
-  String? _downloadUrl;
-
-  // يخزن آخر مستند تمت معالجته (مهام، مواعيد، ملاحظات)
   Map<String, dynamic>? _extractedData;
+  String _statusMessage = 'اضغط للتحدث';
+
+  // ⚠️ أدخل مفتاح OpenAI الخاص بك هنا (للاستخدام المؤقت في الهاكاثون فقط)
+  final String openAiKey = 'sk-...YOUR_API_KEY...';
 
   @override
   void dispose() {
@@ -59,55 +58,102 @@ class _HomeScreenState extends State<HomeScreen> {
       await _recorder.start(const RecordConfig(), path: path);
       setState(() {
         _isRecording = true;
-        _currentRecordingPath = path;
+        _statusMessage = 'جاري التسجيل...';
       });
     }
   }
 
-  Future<void> _stopAndUpload() async {
+  Future<void> _stopAndProcess() async {
     if (!_isRecording) return;
     final path = await _recorder.stop();
-    setState(() => _isRecording = false);
+    setState(() {
+      _isRecording = false;
+      _statusMessage = 'جاري تحويل الصوت إلى نص...';
+    });
     if (path == null) return;
 
-    // رفع الملف الصوتي إلى Firebase Storage
-    final storageRef = FirebaseStorage.instance
-        .ref()
-        .child('audios/${DateTime.now().millisecondsSinceEpoch}.m4a');
-    await storageRef.putFile(File(path));
-    final downloadUrl = await storageRef.getDownloadURL();
+    // 1) إرسال الملف إلى Whisper API
+    final transcript = await _transcribeAudio(File(path));
+    if (transcript == null) {
+      setState(() => _statusMessage = 'فشل تحويل الصوت');
+      return;
+    }
 
-    // إنشاء مستند جديد في Firestore ليبدأ تشغيل الدوال السحابية
+    setState(() => _statusMessage = 'جاري استخراج المهام والمواعيد...');
+
+    // 2) إرسال النص إلى GPT لاستخراج المهام
+    final extracted = await _extractActions(transcript);
+    if (extracted == null) {
+      setState(() => _statusMessage = 'فشل استخراج المهام');
+      return;
+    }
+
+    // 3) حفظ النتائج في Firestore (اختياري للعرض التاريخي)
     await FirebaseFirestore.instance.collection('recordings').add({
-      'audioUrl': downloadUrl,
-      'status': 'uploaded',
+      'transcript': transcript,
+      ...extracted,
       'createdAt': FieldValue.serverTimestamp(),
     });
 
-    // الاستماع إلى آخر مستند تمت إضافته لاستقبال النتائج مباشرة
-    FirebaseFirestore.instance
-        .collection('recordings')
-        .orderBy('createdAt', descending: true)
-        .limit(1)
-        .snapshots()
-        .listen((snapshot) {
-      if (snapshot.docs.isNotEmpty) {
-        final doc = snapshot.docs.first;
-        final data = doc.data();
-        if (data['status'] == 'extracted') {
-          setState(() {
-            _extractedData = data;
-            _downloadUrl = data['audioUrl'];
-          });
-        }
-      }
+    setState(() {
+      _extractedData = extracted;
+      _statusMessage = 'تم بنجاح!';
     });
+  }
 
-    setState(() => _currentRecordingPath = null);
+  Future<String?> _transcribeAudio(File file) async {
+    try {
+      var uri = Uri.parse('https://api.openai.com/v1/audio/transcriptions');
+      var request = http.MultipartRequest('POST', uri);
+      request.headers['Authorization'] = 'Bearer $openAiKey';
+      request.fields['model'] = 'whisper-1';
+      request.fields['language'] = 'ar';
+      request.files.add(await http.MultipartFile.fromPath('file', file.path));
+      var response = await request.send();
+      if (response.statusCode == 200) {
+        var jsonResponse = jsonDecode(await response.stream.bytesToString());
+        return jsonResponse['text'];
+      }
+    } catch (e) {
+      print('Whisper error: $e');
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> _extractActions(String transcript) async {
+    final today = DateTime.now().toIso8601String();
+    final prompt = '''You are an AI assistant that extracts actionable items from Arabic speech transcripts.
+Given the transcript, return a JSON object with three arrays: "tasks" (to-do items with a title and optional due date in ISO format), "events" (calendar entries with summary, start, and end if duration is mentioned), and "notes" (general notes).
+For dates, convert relative terms like "tomorrow" or "next Monday" to absolute dates based on today's date: $today.
+If no date is mentioned for a task, set dueDate to null. Output only valid JSON without any markdown formatting.
+
+Transcript: $transcript''';
+
+    try {
+      final response = await http.post(
+        Uri.parse('https://api.openai.com/v1/chat/completions'),
+        headers: {
+          'Authorization': 'Bearer $openAiKey',
+          'Content-Type': 'application/json',
+        },
+        body: jsonEncode({
+          'model': 'gpt-4o-mini',
+          'messages': [{'role': 'user', 'content': prompt}],
+          'response_format': {'type': 'json_object'},
+          'temperature': 0,
+        }),
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return jsonDecode(data['choices'][0]['message']['content']);
+      }
+    } catch (e) {
+      print('GPT error: $e');
+    }
+    return null;
   }
 
   Future<void> _addToCalendar(Map<String, dynamic> event) async {
-    // للعرض: إنشاء رابط Google Calendar عام (بسيط جداً)
     final title = Uri.encodeComponent(event['summary'] ?? 'Event');
     final start = event['start'] ?? DateTime.now().toIso8601String();
     final end = event['end'] ?? DateTime.now().add(const Duration(hours: 1)).toIso8601String();
@@ -129,9 +175,9 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // زر التسجيل الكبير
+            // زر التسجيل
             GestureDetector(
-              onTap: _isRecording ? _stopAndUpload : _startRecording,
+              onTap: _isRecording ? _stopAndProcess : _startRecording,
               child: Container(
                 width: 120,
                 height: 120,
@@ -148,11 +194,11 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              _isRecording ? 'جاري التسجيل...' : 'اضغط للتحدث',
+              _statusMessage,
               style: const TextStyle(fontSize: 18, color: Colors.grey),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 30),
-            // عرض المهام والمواعيد بعد المعالجة
             if (_extractedData != null) Expanded(child: _buildExtractedView()),
           ],
         ),

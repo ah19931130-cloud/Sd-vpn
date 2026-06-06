@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter_sound/flutter_sound.dart';
+import 'package:record/record.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -39,57 +39,45 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final FlutterSoundRecorder _recorder = FlutterSoundRecorder();
-  bool _isRecorderReady = false;
+  final AudioRecorder _recorder = AudioRecorder();
   bool _isRecording = false;
   Map<String, dynamic>? _extractedData;
   String _statusMessage = 'Press the mic and speak';
-  String? _filePath;
 
   String get openAiKey => dotenv.env['OPENAI_API_KEY'] ?? '';
 
   @override
-  void initState() {
-    super.initState();
-    _initRecorder();
-  }
-
-  Future<void> _initRecorder() async {
-    await _recorder.openRecorder();
-    setState(() => _isRecorderReady = true);
-  }
-
-  @override
   void dispose() {
-    _recorder.closeRecorder();
+    _recorder.dispose();
     super.dispose();
   }
 
   Future<void> _startRecording() async {
-    if (!_isRecorderReady) return;
-    final dir = await getApplicationDocumentsDirectory();
-    _filePath =
-        '${dir.path}/recording_${DateTime.now().millisecondsSinceEpoch}.m4a';
-    await _recorder.startRecorder(
-      toFile: _filePath,
-      codec: Codec.aacMP4,
-    );
-    setState(() {
-      _isRecording = true;
-      _statusMessage = 'Recording...';
-    });
+    if (await _recorder.hasPermission()) {
+      final dir = await getApplicationDocumentsDirectory();
+      final path =
+          '${dir.path}/recording_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _recorder.start(
+        const RecordConfig(),
+        path: path,
+      );
+      setState(() {
+        _isRecording = true;
+        _statusMessage = 'Recording...';
+      });
+    }
   }
 
   Future<void> _stopAndProcess() async {
     if (!_isRecording) return;
-    await _recorder.stopRecorder();
+    final path = await _recorder.stop();
     setState(() {
       _isRecording = false;
       _statusMessage = 'Transcribing...';
     });
-    if (_filePath == null) return;
+    if (path == null) return;
 
-    final transcript = await _transcribeAudio(File(_filePath!));
+    final transcript = await _transcribeAudio(File(path));
     if (transcript == null) {
       setState(() => _statusMessage = 'Transcription failed');
       return;

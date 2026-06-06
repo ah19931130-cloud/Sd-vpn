@@ -1,14 +1,14 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:record/record.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,68 +39,62 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final AudioRecorder _recorder = AudioRecorder();
-  bool _isRecording = false;
   Map<String, dynamic>? _extractedData;
-  String _statusMessage = 'Press the mic and speak';
+  String _statusMessage = 'Tap to process sample audio';
+  bool _isProcessing = false;
 
   String get openAiKey => dotenv.env['OPENAI_API_KEY'] ?? '';
 
-  @override
-  void dispose() {
-    _recorder.dispose();
-    super.dispose();
-  }
+  Future<void> _processSampleAudio() async {
+    setState(() {
+      _isProcessing = true;
+      _statusMessage = 'Loading sample audio...';
+    });
 
-  Future<void> _startRecording() async {
-    if (await _recorder.hasPermission()) {
-      final dir = await getApplicationDocumentsDirectory();
-      final path =
-          '${dir.path}/recording_${DateTime.now().millisecondsSinceEpoch}.m4a';
-      await _recorder.start(
-        const RecordConfig(),
-        path: path,
-      );
+    try {
+      // Load the bundled audio file
+      final byteData = await rootBundle.load('assets/sample_audio.m4a');
+      final tempDir = await getTemporaryDirectory();
+      final tempFile = File('${tempDir.path}/sample_audio.m4a');
+      await tempFile.writeAsBytes(byteData.buffer.asUint8List());
+
+      setState(() => _statusMessage = 'Transcribing...');
+      final transcript = await _transcribeAudio(tempFile);
+      if (transcript == null) {
+        setState(() {
+          _statusMessage = 'Transcription failed';
+          _isProcessing = false;
+        });
+        return;
+      }
+
+      setState(() => _statusMessage = 'Extracting actions...');
+      final extracted = await _extractActions(transcript);
+      if (extracted == null) {
+        setState(() {
+          _statusMessage = 'Extraction failed';
+          _isProcessing = false;
+        });
+        return;
+      }
+
+      await FirebaseFirestore.instance.collection('recordings').add({
+        'transcript': transcript,
+        ...extracted,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
       setState(() {
-        _isRecording = true;
-        _statusMessage = 'Recording...';
+        _extractedData = extracted;
+        _statusMessage = 'Done!';
+        _isProcessing = false;
+      });
+    } catch (e) {
+      setState(() {
+        _statusMessage = 'Error: $e';
+        _isProcessing = false;
       });
     }
-  }
-
-  Future<void> _stopAndProcess() async {
-    if (!_isRecording) return;
-    final path = await _recorder.stop();
-    setState(() {
-      _isRecording = false;
-      _statusMessage = 'Transcribing...';
-    });
-    if (path == null) return;
-
-    final transcript = await _transcribeAudio(File(path));
-    if (transcript == null) {
-      setState(() => _statusMessage = 'Transcription failed');
-      return;
-    }
-
-    setState(() => _statusMessage = 'Extracting actions...');
-
-    final extracted = await _extractActions(transcript);
-    if (extracted == null) {
-      setState(() => _statusMessage = 'Extraction failed');
-      return;
-    }
-
-    await FirebaseFirestore.instance.collection('recordings').add({
-      'transcript': transcript,
-      ...extracted,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-
-    setState(() {
-      _extractedData = extracted;
-      _statusMessage = 'Done!';
-    });
   }
 
   Future<String?> _transcribeAudio(File file) async {
@@ -180,16 +174,16 @@ Transcript: $transcript''';
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             GestureDetector(
-              onTap: _isRecording ? _stopAndProcess : _startRecording,
+              onTap: _isProcessing ? null : _processSampleAudio,
               child: Container(
                 width: 120,
                 height: 120,
                 decoration: BoxDecoration(
-                  color: _isRecording ? Colors.red : Colors.deepPurple,
+                  color: _isProcessing ? Colors.grey : Colors.deepPurple,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  _isRecording ? Icons.stop : Icons.mic,
+                  _isProcessing ? Icons.hourglass_top : Icons.play_arrow,
                   size: 50,
                   color: Colors.white,
                 ),

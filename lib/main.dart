@@ -58,7 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final path =
           '${dir.path}/recording_${DateTime.now().millisecondsSinceEpoch}.m4a';
       await _recorder.start(
-        const AudioRecorderConfig(),
+        RecordConfig(),
         path: path,
       );
       setState(() {
@@ -260,8 +260,8 @@ Transcript: $transcript''';
                       style: TextStyle(fontWeight: FontWeight.bold)),
                   ...notes.map((note) => Padding(
                         padding: const EdgeInsets.only(top: 4),
-                        child: Text('• $note')),
-                      ),
+                        child: Text('• $note'),
+                      )),
                 ],
               ),
             ),

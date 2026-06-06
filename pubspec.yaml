@@ -1,4 +1,4 @@
-name: sd_vpn
+name: voice2action
 description: AI Voice to Action - Hackathon MVP
 publish_to: 'none'
 version: 1.0.0+1
@@ -9,14 +9,14 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  firebase_core: ^2.24.0
-  cloud_firestore: ^4.13.0
-  flutter_sound: ^9.2.13
+  record: ^4.4.4
   path_provider: ^2.1.1
-  intl: ^0.18.1
-  url_launcher: ^6.2.1
   http: ^1.1.0
   flutter_dotenv: ^5.1.0
+  firebase_core: ^2.24.0
+  cloud_firestore: ^4.13.0
+  intl: ^0.18.1
+  url_launcher: ^6.2.1
 
 dev_dependencies:
   flutter_test:

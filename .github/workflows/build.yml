@@ -26,6 +26,9 @@ jobs:
         run: flutter create --platforms android --project-name sd_vpn .
       - name: Restore custom main.dart
         run: mv lib/main.dart.bak lib/main.dart
+      - name: Install Android SDK Platform 35
+        run: |
+          yes | sdkmanager "platforms;android-35"
       - name: Replace android/app/build.gradle with custom config
         run: |
           cat > android/app/build.gradle << 'EOF'

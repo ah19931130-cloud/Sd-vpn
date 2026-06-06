@@ -26,7 +26,21 @@ jobs:
         run: flutter create --platforms android --project-name sd_vpn .
       - name: Restore custom main.dart
         run: mv lib/main.dart.bak lib/main.dart
-      - name: Replace android/app/build.gradle with full working config
+      - name: Install Android SDK Platform 34
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-34"
+      - name: Fix root build.gradle for record_android
+        run: |
+          cat >> android/build.gradle << 'EOF'
+          ext {
+              flutter = [
+                  compileSdkVersion: 34,
+                  minSdkVersion    : 21,
+                  targetSdkVersion : 34
+              ]
+          }
+          EOF
+      - name: Replace android/app/build.gradle with final config
         run: |
           cat > android/app/build.gradle << 'EOF'
           def localProperties = new Properties()
@@ -57,7 +71,7 @@ jobs:
 
           android {
               namespace 'com.example.sd_vpn'
-              compileSdkVersion 33
+              compileSdkVersion 34
               ndkVersion flutter.ndkVersion
 
               compileOptions {
@@ -68,7 +82,7 @@ jobs:
               defaultConfig {
                   applicationId "com.example.sd_vpn"
                   minSdkVersion 21
-                  targetSdkVersion 33
+                  targetSdkVersion 34
                   versionCode flutterVersionCode.toInteger()
                   versionName flutterVersionName
               }

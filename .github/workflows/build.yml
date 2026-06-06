@@ -2,7 +2,8 @@ name: Build Android APK
 
 on:
 push:
-branches: [ main ]
+branches:
+- main
 workflow_dispatch:
 
 jobs:
@@ -35,19 +36,11 @@ steps:
   - name: Restore custom main.dart
     run: mv lib/main.dart.bak lib/main.dart
 
-  - name: Configure Android SDK
-    run: |
-      sed -i 's/compileSdkVersion .*/compileSdkVersion 35/g' android/app/build.gradle || true
-      sed -i 's/targetSdkVersion .*/targetSdkVersion 35/g' android/app/build.gradle || true
-      sed -i 's/minSdkVersion .*/minSdkVersion 24/g' android/app/build.gradle || true
-
   - name: Inject Firebase google-services.json
-    run: |
-      echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
+    run: echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
 
   - name: Inject API Key
-    run: |
-      echo "OPENAI_API_KEY=${{ secrets.GROQ_API_KEY }}" > .env
+    run: echo "OPENAI_API_KEY=${{ secrets.GROQ_API_KEY }}" > .env
 
   - name: Build APK
     run: flutter build apk --debug

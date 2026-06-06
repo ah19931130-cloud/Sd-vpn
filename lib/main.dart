@@ -8,9 +8,11 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
   await Firebase.initializeApp();
   runApp(const Voice2ActionApp());
 }
@@ -40,10 +42,9 @@ class _HomeScreenState extends State<HomeScreen> {
   final AudioRecorder _recorder = AudioRecorder();
   bool _isRecording = false;
   Map<String, dynamic>? _extractedData;
-  String _statusMessage = 'اضغط للتحدث';
+  String _statusMessage = 'Press the mic and speak';
 
-  // ⚠️ أدخل مفتاح OpenAI الخاص بك هنا (للاستخدام المؤقت في الهاكاثون فقط)
-  final String openAiKey = 'sk-...YOUR_API_KEY...';
+  String get openAiKey => dotenv.env['OPENAI_API_KEY'] ?? '';
 
   @override
   void dispose() {
@@ -54,11 +55,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _startRecording() async {
     if (await _recorder.hasPermission()) {
       final dir = await getApplicationDocumentsDirectory();
-      final path = '${dir.path}/recording_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      final path =
+          '${dir.path}/recording_${DateTime.now().millisecondsSinceEpoch}.m4a';
       await _recorder.start(const RecordConfig(), path: path);
       setState(() {
         _isRecording = true;
-        _statusMessage = 'جاري التسجيل...';
+        _statusMessage = 'Recording...';
       });
     }
   }
@@ -68,27 +70,24 @@ class _HomeScreenState extends State<HomeScreen> {
     final path = await _recorder.stop();
     setState(() {
       _isRecording = false;
-      _statusMessage = 'جاري تحويل الصوت إلى نص...';
+      _statusMessage = 'Transcribing...';
     });
     if (path == null) return;
 
-    // 1) إرسال الملف إلى Whisper API
     final transcript = await _transcribeAudio(File(path));
     if (transcript == null) {
-      setState(() => _statusMessage = 'فشل تحويل الصوت');
+      setState(() => _statusMessage = 'Transcription failed');
       return;
     }
 
-    setState(() => _statusMessage = 'جاري استخراج المهام والمواعيد...');
+    setState(() => _statusMessage = 'Extracting actions...');
 
-    // 2) إرسال النص إلى GPT لاستخراج المهام
     final extracted = await _extractActions(transcript);
     if (extracted == null) {
-      setState(() => _statusMessage = 'فشل استخراج المهام');
+      setState(() => _statusMessage = 'Extraction failed');
       return;
     }
 
-    // 3) حفظ النتائج في Firestore (اختياري للعرض التاريخي)
     await FirebaseFirestore.instance.collection('recordings').add({
       'transcript': transcript,
       ...extracted,
@@ -97,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     setState(() {
       _extractedData = extracted;
-      _statusMessage = 'تم بنجاح!';
+      _statusMessage = 'Done!';
     });
   }
 
@@ -155,8 +154,10 @@ Transcript: $transcript''';
 
   Future<void> _addToCalendar(Map<String, dynamic> event) async {
     final title = Uri.encodeComponent(event['summary'] ?? 'Event');
-    final start = event['start'] ?? DateTime.now().toIso8601String();
-    final end = event['end'] ?? DateTime.now().add(const Duration(hours: 1)).toIso8601String();
+    final start =
+        event['start'] ?? DateTime.now().toIso8601String();
+    final end =
+        event['end'] ?? DateTime.now().add(const Duration(hours: 1)).toIso8601String();
     final url =
         'https://calendar.google.com/calendar/render?action=TEMPLATE&text=$title&dates=${start.replaceAll(RegExp(r'[-:.]'), '')}/${end.replaceAll(RegExp(r'[-:.]'), '')}';
     if (await canLaunchUrl(Uri.parse(url))) {
@@ -175,7 +176,6 @@ Transcript: $transcript''';
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // زر التسجيل
             GestureDetector(
               onTap: _isRecording ? _stopAndProcess : _startRecording,
               child: Container(
@@ -199,7 +199,8 @@ Transcript: $transcript''';
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 30),
-            if (_extractedData != null) Expanded(child: _buildExtractedView()),
+            if (_extractedData != null)
+              Expanded(child: _buildExtractedView()),
           ],
         ),
       ),
@@ -207,8 +208,10 @@ Transcript: $transcript''';
   }
 
   Widget _buildExtractedView() {
-    final tasks = List<Map<String, dynamic>>.from(_extractedData!['tasks'] ?? []);
-    final events = List<Map<String, dynamic>>.from(_extractedData!['events'] ?? []);
+    final tasks =
+        List<Map<String, dynamic>>.from(_extractedData!['tasks'] ?? []);
+    final events =
+        List<Map<String, dynamic>>.from(_extractedData!['events'] ?? []);
     final notes = List<String>.from(_extractedData!['notes'] ?? []);
     final dateFormat = DateFormat('yyyy/MM/dd HH:mm');
 
@@ -220,7 +223,7 @@ Transcript: $transcript''';
                 color: Colors.blue.shade50,
                 child: ListTile(
                   leading: const Icon(Icons.event, color: Colors.blue),
-                  title: Text(event['summary'] ?? 'موعد'),
+                  title: Text(event['summary'] ?? 'Event'),
                   subtitle: Text(
                     '${dateFormat.format(DateTime.parse(event['start']))} → ${dateFormat.format(DateTime.parse(event['end']))}',
                   ),
@@ -235,10 +238,11 @@ Transcript: $transcript''';
                 color: Colors.orange.shade50,
                 child: ListTile(
                   leading: const Icon(Icons.task_alt, color: Colors.orange),
-                  title: Text(task['title'] ?? 'مهمة'),
+                  title: Text(task['title'] ?? 'Task'),
                   subtitle: task['dueDate'] != null
-                      ? Text('موعد التسليم: ${dateFormat.format(DateTime.parse(task['dueDate']))}')
-                      : const Text('بدون موعد محدد'),
+                      ? Text(
+                          'Due: ${dateFormat.format(DateTime.parse(task['dueDate']))}')
+                      : const Text('No due date'),
                 ),
               )),
         if (notes.isNotEmpty)
@@ -249,7 +253,8 @@ Transcript: $transcript''';
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('📝 ملاحظات', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text('📝 Notes',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                   ...notes.map((note) => Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text('• $note'),

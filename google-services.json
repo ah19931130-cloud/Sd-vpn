@@ -1,0 +1,30 @@
+{
+  "معلومات_المشروع": {
+    "رقم_المشروع": "997335457535"
+    "firebase_url": "https://voice2action-hackathon-default-rtdb.firebaseio.com",
+    "project_id": "voice2action-hackathon",
+    "storage_bucket": "voice2action-hackathon.firebasestorage.app"
+  },
+  "عميل": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:997335457535:android:cd32d6fda096c36b0ab6ca",
+        "android_client_info": {
+          "اسم_الحزمة": "com.yourcompany.voice2action"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAK5ON0LE1UJcigKVZXjKKUxHmlusqgwr8"
+        }
+      ],
+      "خدمات": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,31 @@
+cat > pubspec.yaml << 'EOF'
+name: voice2action
+description: AI Voice to Action - Hackathon MVP
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.1.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  firebase_core: ^2.24.0
+  cloud_firestore: ^4.13.0
+  record: ^4.4.4
+  path_provider: ^2.1.1
+  intl: ^0.18.1
+  url_launcher: ^6.2.1
+  http: ^1.1.0
+  flutter_dotenv: ^5.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - .env
+EOF

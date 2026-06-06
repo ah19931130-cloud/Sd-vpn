@@ -56,6 +56,7 @@ jobs:
           apply from: "$flutterRoot/packages/flutter_tools/gradle/flutter.gradle"
 
           android {
+              namespace 'com.example.sd_vpn'
               compileSdkVersion 35
               ndkVersion flutter.ndkVersion
 

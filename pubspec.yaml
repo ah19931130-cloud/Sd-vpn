@@ -1,5 +1,5 @@
 name: voice2action
-description: AI Daily Task Organizer - Hackathon MVP
+description: AI Daily Task Organizer - Hackathon MVP (Free Tier)
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -11,11 +11,11 @@ dependencies:
     sdk: flutter
   firebase_core: ^2.24.0
   cloud_firestore: ^4.13.0
-  firebase_storage: ^11.5.0
   record: ^4.4.4
   path_provider: ^2.1.1
   intl: ^0.18.1
   url_launcher: ^6.2.1
+  http: ^1.1.0        # ← جديد: لاستدعاء OpenAI API
 
 dev_dependencies:
   flutter_test:

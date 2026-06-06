@@ -21,9 +21,9 @@ jobs:
       - name: Inject Firebase google-services.json
         run: |
           echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
-      - name: Inject OpenAI key from secret
+      - name: Inject Groq API key (as OPENAI_API_KEY for code compatibility)
         run: |
-          echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" > .env
+          echo "OPENAI_API_KEY=${{ secrets.GROQ_API_KEY }}" > .env
       - run: flutter build apk --debug
       - uses: actions/upload-artifact@v3
         with:

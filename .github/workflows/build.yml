@@ -26,8 +26,20 @@ jobs:
         run: flutter create --platforms android --project-name sd_vpn .
       - name: Restore custom main.dart
         run: mv lib/main.dart.bak lib/main.dart
-      - name: Set minSdkVersion to 23
-        run: sed -i 's/minSdkVersion .*/minSdkVersion 23/' android/app/build.gradle
+      - name: Set compileSdk and minSdk for flutter_sound compatibility
+        run: |
+          sed -i 's/compileSdkVersion .*/compileSdkVersion 35/' android/app/build.gradle
+          sed -i 's/minSdkVersion .*/minSdkVersion 24/' android/app/build.gradle
+          sed -i 's/targetSdkVersion .*/targetSdkVersion 35/' android/app/build.gradle
+          cat >> android/build.gradle << 'EOF'
+          ext {
+              flutter = [
+                  compileSdkVersion: 35,
+                  minSdkVersion    : 24,
+                  targetSdkVersion : 35
+              ]
+          }
+          EOF
       - name: Inject Firebase google-services.json
         run: |
           echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json

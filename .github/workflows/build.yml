@@ -32,6 +32,17 @@ jobs:
         run: cp lib/main.dart lib/main.dart.bak
       - name: Create missing Android project files
         run: flutter create --platforms android --project-name sd_vpn .
+      - name: Fix Gradle for record_android compatibility
+        run: |
+          cat >> android/build.gradle << 'EOF'
+          ext {
+              flutter = [
+                  compileSdkVersion: 33,
+                  minSdkVersion    : 21,
+                  targetSdkVersion : 33
+              ]
+          }
+          EOF
       - name: Restore custom main.dart
         run: mv lib/main.dart.bak lib/main.dart
       - run: flutter build apk --debug

@@ -38,7 +38,7 @@ jobs:
           ext {
               flutter = [
                   compileSdkVersion: 33,
-                  minSdkVersion    : 21,
+                  minSdkVersion    : 23,
                   targetSdkVersion : 33
               ]
           }

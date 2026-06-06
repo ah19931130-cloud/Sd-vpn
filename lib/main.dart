@@ -52,9 +52,8 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      // Load the bundled audio file
       final byteData = await rootBundle.load('assets/sample_audio.m4a');
-      final tempDir = await getTemporaryDirectory();
+      final tempDir = await getApplicationDocumentsDirectory();
       final tempFile = File('${tempDir.path}/sample_audio.m4a');
       await tempFile.writeAsBytes(byteData.buffer.asUint8List());
 
@@ -103,7 +102,7 @@ class _HomeScreenState extends State<HomeScreen> {
       var request = http.MultipartRequest('POST', uri);
       request.headers['Authorization'] = 'Bearer $openAiKey';
       request.fields['model'] = 'whisper-1';
-      request.fields['language'] = 'ar';
+      // تم إزالة request.fields['language'] = 'ar'; لدعم كل اللغات
       request.files.add(await http.MultipartFile.fromPath('file', file.path));
       var response = await request.send();
       if (response.statusCode == 200) {

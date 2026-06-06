@@ -22,10 +22,6 @@ jobs:
       - run: flutter pub get
       - name: Create Android project files
         run: flutter create --platforms android --project-name voice2action .
-      - name: Set compileSdk and targetSdk to 34
-        run: |
-          sed -i 's/compileSdkVersion .*/compileSdkVersion 34/' android/app/build.gradle
-          sed -i 's/targetSdkVersion .*/targetSdkVersion 34/' android/app/build.gradle
       - name: Inject Firebase google-services.json
         run: |
           mkdir -p android/app

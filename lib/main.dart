@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:record/record.dart';
+import 'package:flutter_sound/flutter_sound.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -39,7 +39,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final AudioRecorder _recorder = AudioRecorder();
+  final FlutterSoundRecorder _recorder = FlutterSoundRecorder();
   bool _isRecording = false;
   Map<String, dynamic>? _extractedData;
   String _statusMessage = 'Press the mic and speak';
@@ -47,30 +47,34 @@ class _HomeScreenState extends State<HomeScreen> {
   String get openAiKey => dotenv.env['OPENAI_API_KEY'] ?? '';
 
   @override
+  void initState() {
+    super.initState();
+    _recorder.openRecorder();
+  }
+
+  @override
   void dispose() {
-    _recorder.dispose();
+    _recorder.closeRecorder();
     super.dispose();
   }
 
   Future<void> _startRecording() async {
-    if (await _recorder.hasPermission()) {
-      final dir = await getApplicationDocumentsDirectory();
-      final path =
-          '${dir.path}/recording_${DateTime.now().millisecondsSinceEpoch}.m4a';
-      await _recorder.start(
-        const RecordConfig(),
-        path: path,
-      );
-      setState(() {
-        _isRecording = true;
-        _statusMessage = 'Recording...';
-      });
-    }
+    final dir = await getApplicationDocumentsDirectory();
+    final path =
+        '${dir.path}/recording_${DateTime.now().millisecondsSinceEpoch}.m4a';
+    await _recorder.startRecorder(
+      toFile: path,
+      codec: Codec.aacMP4,
+    );
+    setState(() {
+      _isRecording = true;
+      _statusMessage = 'Recording...';
+    });
   }
 
   Future<void> _stopAndProcess() async {
     if (!_isRecording) return;
-    final path = await _recorder.stop();
+    final path = await _recorder.stopRecorder();
     setState(() {
       _isRecording = false;
       _statusMessage = 'Transcribing...';
@@ -125,9 +129,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<Map<String, dynamic>?> _extractActions(String transcript) async {
     final today = DateTime.now().toIso8601String();
     final prompt = '''You are an AI assistant that extracts actionable items from Arabic speech transcripts.
-Given the transcript, return a JSON object with three arrays: "tasks" (to-do items with a title and optional due date in ISO format), "events" (calendar entries with summary, start, and end if duration is mentioned), and "notes" (general notes).
-For dates, convert relative terms like "tomorrow" or "next Monday" to absolute dates based on today's date: $today.
-If no date is mentioned for a task, set dueDate to null. Output only valid JSON without any markdown formatting.
+Given the transcript, return a JSON object with three arrays: "tasks", "events", "notes".
+For dates, convert relative terms like "tomorrow" to absolute dates based on today: $today.
+Output only valid JSON without any markdown formatting.
 
 Transcript: $transcript''';
 
@@ -157,12 +161,9 @@ Transcript: $transcript''';
 
   Future<void> _addToCalendar(Map<String, dynamic> event) async {
     final title = Uri.encodeComponent(event['summary'] ?? 'Event');
-    final start =
-        event['start'] ?? DateTime.now().toIso8601String();
-    final end =
-        event['end'] ?? DateTime.now().add(const Duration(hours: 1)).toIso8601String();
-    final url =
-        'https://calendar.google.com/calendar/render?action=TEMPLATE&text=$title&dates=${start.replaceAll(RegExp(r'[-:.]'), '')}/${end.replaceAll(RegExp(r'[-:.]'), '')}';
+    final start = event['start'] ?? DateTime.now().toIso8601String();
+    final end = event['end'] ?? DateTime.now().add(const Duration(hours: 1)).toIso8601String();
+    final url = 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=$title&dates=${start.replaceAll(RegExp(r'[-:.]'), '')}/${end.replaceAll(RegExp(r'[-:.]'), '')}';
     if (await canLaunchUrl(Uri.parse(url))) {
       await launchUrl(Uri.parse(url));
     }
@@ -171,10 +172,7 @@ Transcript: $transcript''';
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('🎙️ Voice2Action'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Voice2Action'), centerTitle: true),
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -182,28 +180,18 @@ Transcript: $transcript''';
             GestureDetector(
               onTap: _isRecording ? _stopAndProcess : _startRecording,
               child: Container(
-                width: 120,
-                height: 120,
+                width: 120, height: 120,
                 decoration: BoxDecoration(
                   color: _isRecording ? Colors.red : Colors.deepPurple,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  _isRecording ? Icons.stop : Icons.mic,
-                  size: 50,
-                  color: Colors.white,
-                ),
+                child: Icon(_isRecording ? Icons.stop : Icons.mic, size: 50, color: Colors.white),
               ),
             ),
             const SizedBox(height: 12),
-            Text(
-              _statusMessage,
-              style: const TextStyle(fontSize: 18, color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
+            Text(_statusMessage, style: const TextStyle(fontSize: 18, color: Colors.grey)),
             const SizedBox(height: 30),
-            if (_extractedData != null)
-              Expanded(child: _buildExtractedView()),
+            if (_extractedData != null) Expanded(child: _buildExtractedView()),
           ],
         ),
       ),
@@ -211,43 +199,30 @@ Transcript: $transcript''';
   }
 
   Widget _buildExtractedView() {
-    final tasks =
-        List<Map<String, dynamic>>.from(_extractedData!['tasks'] ?? []);
-    final events =
-        List<Map<String, dynamic>>.from(_extractedData!['events'] ?? []);
+    final tasks = List<Map<String, dynamic>>.from(_extractedData!['tasks'] ?? []);
+    final events = List<Map<String, dynamic>>.from(_extractedData!['events'] ?? []);
     final notes = List<String>.from(_extractedData!['notes'] ?? []);
     final dateFormat = DateFormat('yyyy/MM/dd HH:mm');
-
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        if (events.isNotEmpty)
-          ...events.map((event) => Card(
-                color: Colors.blue.shade50,
-                child: ListTile(
-                  leading: const Icon(Icons.event, color: Colors.blue),
-                  title: Text(event['summary'] ?? 'Event'),
-                  subtitle: Text(
-                    '${dateFormat.format(DateTime.parse(event['start']))} → ${dateFormat.format(DateTime.parse(event['end']))}',
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.calendar_today),
-                    onPressed: () => _addToCalendar(event),
-                  ),
-                ),
-              )),
-        if (tasks.isNotEmpty)
-          ...tasks.map((task) => Card(
-                color: Colors.orange.shade50,
-                child: ListTile(
-                  leading: const Icon(Icons.task_alt, color: Colors.orange),
-                  title: Text(task['title'] ?? 'Task'),
-                  subtitle: task['dueDate'] != null
-                      ? Text(
-                          'Due: ${dateFormat.format(DateTime.parse(task['dueDate']))}')
-                      : const Text('No due date'),
-                ),
-              )),
+        ...events.map((event) => Card(
+              color: Colors.blue.shade50,
+              child: ListTile(
+                leading: const Icon(Icons.event, color: Colors.blue),
+                title: Text(event['summary'] ?? 'Event'),
+                subtitle: Text('${dateFormat.format(DateTime.parse(event['start']))} → ${dateFormat.format(DateTime.parse(event['end']))}'),
+                trailing: IconButton(icon: const Icon(Icons.calendar_today), onPressed: () => _addToCalendar(event)),
+              ),
+            )),
+        ...tasks.map((task) => Card(
+              color: Colors.orange.shade50,
+              child: ListTile(
+                leading: const Icon(Icons.task_alt, color: Colors.orange),
+                title: Text(task['title'] ?? 'Task'),
+                subtitle: task['dueDate'] != null ? Text('Due: ${dateFormat.format(DateTime.parse(task['dueDate']))}') : const Text('No due date'),
+              ),
+            )),
         if (notes.isNotEmpty)
           Card(
             color: Colors.green.shade50,
@@ -256,12 +231,8 @@ Transcript: $transcript''';
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('📝 Notes',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  ...notes.map((note) => Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text('• $note'),
-                      )),
+                  const Text('Notes', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ...notes.map((note) => Padding(padding: const EdgeInsets.only(top: 4), child: Text('• $note'))),
                 ],
               ),
             ),

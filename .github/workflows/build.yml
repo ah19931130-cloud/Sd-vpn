@@ -28,6 +28,8 @@ jobs:
       - name: Inject Groq API key (as OPENAI_API_KEY for code compatibility)
         run: |
           echo "OPENAI_API_KEY=${{ secrets.GROQ_API_KEY }}" > .env
+      - name: Create missing Android project files
+        run: flutter create --platforms android .
       - run: flutter build apk --debug
       - uses: actions/upload-artifact@v4
         with:

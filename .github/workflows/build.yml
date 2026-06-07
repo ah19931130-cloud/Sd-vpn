@@ -22,6 +22,10 @@ jobs:
       - run: flutter pub get
       - name: Create Android project files
         run: flutter create --platforms android --project-name voice2action .
+      - name: Fix Kotlin version
+        run: |
+          sed -i 's/ext.kotlin_version = .*/ext.kotlin_version = "1.9.24"/' android/build.gradle
+          sed -i 's/id "org.jetbrains.kotlin.android" version ".*"/id "org.jetbrains.kotlin.android" version "1.9.24"/' android/settings.gradle
       - name: Inject Firebase google-services.json
         run: |
           mkdir -p android/app

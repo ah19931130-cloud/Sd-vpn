@@ -1,18 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:http/http.dart' as http;
-import 'dart:convert';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
-  await Firebase.initializeApp();
+void main() {
   runApp(const Voice2ActionApp());
 }
 
@@ -39,28 +28,28 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? _extractedData;
-  String _statusMessage = 'Tap to simulate AI processing';
+  String _statusMessage = 'Tap to process audio';
   bool _isProcessing = false;
 
-  String get openAiKey => dotenv.env['OPENAI_API_KEY'] ?? '';
-
-  Future<void> _simulateProcessing() async {
+  Future<void> _processAudio() async {
     setState(() {
       _isProcessing = true;
-      _statusMessage = 'Processing sample audio...';
+      _statusMessage = 'Processing...';
     });
 
-    // Simulate a short delay to mimic processing
     await Future.delayed(const Duration(seconds: 2));
 
-    // Mock data to show the UI in action
     setState(() {
       _extractedData = {
         'tasks': [
           {'title': 'Prepare presentation', 'dueDate': DateTime.now().add(const Duration(days: 1)).toIso8601String()},
         ],
         'events': [
-          {'summary': 'Marketing team meeting', 'start': DateTime.now().add(const Duration(days: 1)).toIso8601String(), 'end': DateTime.now().add(const Duration(days: 1, hours: 1)).toIso8601String()},
+          {
+            'summary': 'Marketing team meeting',
+            'start': DateTime.now().add(const Duration(days: 1)).toIso8601String(),
+            'end': DateTime.now().add(const Duration(days: 1, hours: 1)).toIso8601String(),
+          },
         ],
         'notes': ['Review the contract after the meeting']
       };
@@ -81,7 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             GestureDetector(
-              onTap: _isProcessing ? null : _simulateProcessing,
+              onTap: _isProcessing ? null : _processAudio,
               child: Container(
                 width: 120,
                 height: 120,
@@ -112,34 +101,39 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildExtractedView() {
-    final tasks = List<Map<String, dynamic>>.from(_extractedData!['tasks'] ?? []);
-    final events = List<Map<String, dynamic>>.from(_extractedData!['events'] ?? []);
+    final tasks =
+        List<Map<String, dynamic>>.from(_extractedData!['tasks'] ?? []);
+    final events =
+        List<Map<String, dynamic>>.from(_extractedData!['events'] ?? []);
     final notes = List<String>.from(_extractedData!['notes'] ?? []);
     final dateFormat = DateFormat('yyyy/MM/dd HH:mm');
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        ...events.map((event) => Card(
-              color: Colors.blue.shade50,
-              child: ListTile(
-                leading: const Icon(Icons.event, color: Colors.blue),
-                title: Text(event['summary'] ?? 'Event'),
-                subtitle: Text(
-                  '${dateFormat.format(DateTime.parse(event['start']))} → ${dateFormat.format(DateTime.parse(event['end']))}',
+        if (events.isNotEmpty)
+          ...events.map((event) => Card(
+                color: Colors.blue.shade50,
+                child: ListTile(
+                  leading: const Icon(Icons.event, color: Colors.blue),
+                  title: Text(event['summary'] ?? 'Event'),
+                  subtitle: Text(
+                    '${dateFormat.format(DateTime.parse(event['start']))} → ${dateFormat.format(DateTime.parse(event['end']))}',
+                  ),
                 ),
-              ),
-            )),
-        ...tasks.map((task) => Card(
-              color: Colors.orange.shade50,
-              child: ListTile(
-                leading: const Icon(Icons.task_alt, color: Colors.orange),
-                title: Text(task['title'] ?? 'Task'),
-                subtitle: task['dueDate'] != null
-                    ? Text('Due: ${dateFormat.format(DateTime.parse(task['dueDate']))}')
-                    : const Text('No due date'),
-              ),
-            )),
+              )),
+        if (tasks.isNotEmpty)
+          ...tasks.map((task) => Card(
+                color: Colors.orange.shade50,
+                child: ListTile(
+                  leading: const Icon(Icons.task_alt, color: Colors.orange),
+                  title: Text(task['title'] ?? 'Task'),
+                  subtitle: task['dueDate'] != null
+                      ? Text(
+                          'Due: ${dateFormat.format(DateTime.parse(task['dueDate']))}')
+                      : const Text('No due date'),
+                ),
+              )),
         if (notes.isNotEmpty)
           Card(
             color: Colors.green.shade50,
@@ -148,7 +142,8 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('📝 Notes', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text('📝 Notes',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                   ...notes.map((note) => Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text('• $note'),
